@@ -2,9 +2,9 @@
 
 #include <Arduino.h>
 
-class Button {
+class SensorTactil {
 public:
-    Button(int pinNumber) : pin(pinNumber) {} // Constructor, inicializa el boton
+    SensorTactil(int _pin) : pin(_pin) {} // Constructor, inicializa el boton
 
     void iniciar() {
         pinMode(pin, INPUT);
