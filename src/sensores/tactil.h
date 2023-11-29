@@ -11,6 +11,7 @@ public:
     }
 
     bool presionado() {
+        //Evaluar si cambió el estado al anterior y el estado actual es presionado
         bool estadoActual = digitalRead(pin);
         bool presionado = !estadoAnterior && estadoActual;
         estadoAnterior = estadoActual;

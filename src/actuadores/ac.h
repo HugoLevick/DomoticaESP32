@@ -16,6 +16,7 @@ class AireAcondicionado {
             float temperatura = temp->getTemperatura();
 
             bool encenderAire = temperatura > 25.0;
+            //Cambiar estado del aire si es diferente al anterior
             if(encenderAire && encenderAire != estado) {
                 estado = encenderAire;
                 led->encender();

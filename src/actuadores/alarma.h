@@ -20,7 +20,7 @@ public:
         http(_http),
         rfid(_rfid),
         sensorPuerta(_sensorPuerta)
-    {} // Constructor, inicializa el boton
+    {} // Constructor, inicializa la alarma
 
     void iniciar() {
         SPI.begin();
@@ -32,20 +32,24 @@ public:
     }
 
     String getUltimoUidLeido(bool ignorarExpiracion = false) {
+        //Regresar ultimo uid leido 
         if(ignorarExpiracion) {
             return ultimoUidLeido;
         }
 
+        //Regresar ultimo uid leido si no ha expirado
         if(millis() - ultimoTiempoUidLeido < EXPIRACION_UID) {
             return ultimoUidLeido;
         }
 
+        //Regresar cadena vacia si ha expirado
         return "";
     }
 
     void actualizar() {
-        desbloqueado = millis() - ultimoTiempoDesbloqueado < TIEMPO_DESBLOQUEO;
+        permitirApertura = millis() - ultimoTiempoDesbloqueado < TIEMPO_DESBLOQUEO;
 
+        //Si se excedió la cantidad de intentos fallidos, enviar alarma
         if(intentosFallidos >= LIMITE_INTENTOS_FALLIDOS && !alarmaIntentoFallidoEnviada) {
             Serial.println("Intruso detectado");
             //Sonar alarma
@@ -56,7 +60,8 @@ public:
             }
         }
 
-        if(!desbloqueado) {
+        //Si la puerta no tiene permitido desbloquearse, enviar alarma
+        if(!permitirApertura) {
             if(sensorPuerta->abierto() && estado == true && !alarmaDesbloqueoEnviada) {
                 Serial.println("Intruso detectado");
                 //Sonar alarma
@@ -68,17 +73,20 @@ public:
             }
         }
 
+        //Verificar si hay una nueva tarjeta para leer
         if (rfid->PICC_IsNewCardPresent()  && rfid->PICC_ReadCardSerial() && !alarmaIntentoFallido) {
             // Mostrar información de la tarjeta por el monitor serie
             Serial.print(F("UID de la tarjeta:"));
             mostrarByteArray(rfid->uid.uidByte, rfid->uid.size);  // Motrar el UID
-            guardarUltimoUid(rfid->uid.uidByte, rfid->uid.size);
+            guardarUltimoUid(rfid->uid.uidByte, rfid->uid.size);  // Guardar el UID para uso futuro
             Serial.println();
 
             rfid->PICC_HaltA(); // Detener la tarjeta actual
 
+            //Ruta para autenticar tarjeta
             String serverPath = Config::gateway_ip + "/auth/rfid/autenticar/";
 
+            //Hacer petición
             http->begin(serverPath);
             http->addHeader("Content-Type", "application/json");  //Specify content-type header
 
@@ -91,6 +99,7 @@ public:
             http->end();
             Serial.println(httpResponseCode);
 
+            //Evaluar respuesta
             if(httpResponseCode == 200) {
                 reiniciarAlarma();
                 Serial.println("Desbloqueado");
@@ -103,17 +112,19 @@ public:
     }
 
     void reiniciarAlarma() {
+        //Reiniciar parámetros de alarma
         intentosFallidos = 0;
         alarmaIntentoFallido = false;
         alarmaIntentoFallidoEnviada = false;
 
-        desbloqueado = true;
+        permitirApertura = true;
         alarmaDesbloqueo = false;
         alarmaDesbloqueoEnviada = false;
         ultimoTiempoDesbloqueado = millis();
     }
 
     DynamicJsonDocument obtenerAlarmasActivasJSON() {
+        //Crear objeto JSON de alarmas activas
         DynamicJsonDocument doc(512);
         JsonArray alarmasActivas = doc.to<JsonArray>();
 
@@ -128,10 +139,6 @@ public:
         return doc;
     }
 
-    // bool accionado() {
-    //     return !digitalRead(pin);
-    // }
-
 private:
     MFRC522* rfid;
     HTTPClient* http;
@@ -141,14 +148,16 @@ private:
     String ultimoUidLeido = "";
     unsigned long ultimoTiempoUidLeido = 0;
 
-    bool desbloqueado = false;
+    bool permitirApertura = false;
     unsigned long ultimoTiempoDesbloqueado = 0;
     bool alarmaDesbloqueo = false;
+    //Variable para saber si ya se envió la alarma al gateway
     bool alarmaDesbloqueoEnviada = false;
 
     int intentosFallidos = 0;
     bool alarmaIntentoFallido = false;
     unsigned long ultimoTiempoIntentoFallido = 0;
+    //Variable para saber si ya se envió la alarma al gateway
     bool alarmaIntentoFallidoEnviada = false;
 
     void mostrarByteArray(byte* buffer, byte bufferSize) {

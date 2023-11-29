@@ -31,6 +31,7 @@ class Led {
         bool estado = false;
 
         void iniciar(bool web = false) {
+            //Declarar modo de pin y sensores asociados
             pinMode(pin, OUTPUT);
             if(boton) {
                 boton->iniciar();
@@ -40,6 +41,7 @@ class Led {
             }
         }
         
+        //Variable web se usa para saber si la petición fue enviada desde fuera (internet, etc.)
         void encender(bool web = false) {
             if(web) {
                 establecerEstadoWeb(HIGH, estado);
@@ -68,11 +70,13 @@ class Led {
         }
 
         void actualizar() {
+            //Verificar si se presionó el botón asociado y cambiar el estado
             if(boton && boton->presionado()) {
                 flip();
                 enviarEstado();   
             }
             
+            //Verificar si hubo un cambio en el sensor y cambiar el estado
             if (sensorProximidad && !actuadoWeb) {
                 unsigned long tiempoActual = millis();
                 if(tiempoActual - sensorProxUltVezActuado >= PROXIMITY_DELAY) {
@@ -88,6 +92,8 @@ class Led {
         
         }
 
+
+        //Función para enviar el estado del led al gateway
         void enviarEstado() {
             if(!http) {
                 return;
@@ -114,8 +120,10 @@ class Led {
         SensorTactil* boton;
         SensorProximidad* sensorProximidad;
         unsigned long sensorProxUltVezActuado = 0;
+        //Usado por el sensor de proximidad para saber si actúa ante el cambio)
         bool actuadoWeb = false;
 
+        //Establece el estado del led en caso de que se hiciera petición de cambio por el servidor web
         void establecerEstadoWeb(bool nuevoEstado, bool estadoAnterior) {
             if(actuadoWeb && estadoAnterior != nuevoEstado) {
                 actuadoWeb = false;

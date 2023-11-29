@@ -14,16 +14,20 @@
 #include "sensores/proximidad.h"
 #include "sensores/temperatura.h"
 
+//Pines para el RFID
 #define RST_PIN	2
 #define SS_PIN	5
 
+//Cliente http para hacer peticiones hacia el gateway
 HTTPClient http;
 
 MFRC522 rfid(SS_PIN, RST_PIN); //Creamos el objeto para el RFID
 
+//Creacion de alarma
 SensorApertura puertaSensorApertura(36);
 Alarma alarma(&http, &rfid, &puertaSensorApertura);
 
+//Creacion de AC
 SensorTemperatura sensorTempRecamara(27);
 Led ledAC("AC", 26);
 AireAcondicionado ac(&sensorTempRecamara, &ledAC);
@@ -32,27 +36,33 @@ AireAcondicionado ac(&sensorTempRecamara, &ledAC);
 // MFRC522::MIFARE_Key keyA = {keyByte: {0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5}};
 // MFRC522::MIFARE_Key keyB = {keyByte: {0xB0, 0xB1, 0xB2, 0xB3, 0xB4, 0xB5}};
 
+//Creacion de Leds
+Led ledCocina("Cocina", 33, &http);
 
-SensorTactil botonCocina(22);
-Led ledCocina("Cocina", 21, &http, &botonCocina);
+SensorTactil botonPA(35);
+Led ledPA("P. A.", 32, &http, &botonPA);
 
 SensorProximidad sensorProximidadBano(13);
-Led ledBano("Baño", 12, &http, nullptr, &sensorProximidadBano);
+Led ledBano("Baño", 25, &http, nullptr, &sensorProximidadBano);
 
-Led ledSala("Sala", 26, &http);
+SensorTactil botonSala(22);
+Led ledSala("Sala", 26, &http, &botonSala);
 
-Led identificadoresLed[] = {ledCocina, ledBano, ledSala};
+//Guardar leds en un array para poder iterar sobre ellos
+Led identificadoresLed[] = {ledCocina, ledBano, ledSala, ledPA};
 int ledArrayLength = sizeof(identificadoresLed) / sizeof(identificadoresLed[0]);
 
+//Crear servidor web
 AsyncWebServer server(80);
 
 void setup() {
   Serial.begin(115200);
   Serial.println();
 
+  //Inicialización de actuadores y sensores
   alarma.iniciar();
-  sensorTempRecamara.iniciar();
   rfid.PCD_DumpVersionToSerial();	//Muestra la version del firmware del lector
+  sensorTempRecamara.iniciar();
 
 
   for (int i = 0; i < ledArrayLength; i++) {
@@ -60,18 +70,22 @@ void setup() {
       led.iniciar();
   }
 
-  // Connect to Wi-Fi
+  //Conectar WiFi
   WiFi.begin(Config::ssid, Config::password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
     Serial.println("Connecting to WiFi...");
   }
 
-  // Print the ESP32's IP address
+  //Imprimir dirección IP
   Serial.println("Connected to WiFi");
   Serial.print("ESP32 IP address: ");
   Serial.println(WiFi.localIP());
 
+
+  //------------------------------- Agregar rutas al servidor ----------------------------
+
+  //Ruta para obtener el estado de los leds
   server.on("/leds", HTTP_GET, [](AsyncWebServerRequest *request){
     // Check if the user is authenticated
     if (!request->authenticate(Config::http_username, Config::http_password)) {
@@ -99,7 +113,7 @@ void setup() {
 
   });
 
-  // Define routes and handlers
+  //Ruta para cambiar estado de los leds
   server.on("/leds", HTTP_POST, [](AsyncWebServerRequest *request){
      // Check if the user is authenticated
       if (!request->authenticate(Config::http_username, Config::http_password)) {
@@ -158,6 +172,7 @@ void setup() {
       }
   });
 
+  //Ruta para asignar tarjeta nfc a un usuario
   server.on("/asignarRfid", HTTP_GET, [](AsyncWebServerRequest *request){
     // Check if the user is authenticated
     if (!request->authenticate(Config::http_username, Config::http_password)) {
@@ -178,17 +193,20 @@ void setup() {
     }
   });
 
+  //Ruta para obtener las alarmas
   server.on("/alarmas", HTTP_GET, [](AsyncWebServerRequest *request){
     String json;
     serializeJson(alarma.obtenerAlarmasActivasJSON(), json);
     request->send(200, "application/json", json);
   });
 
+  //Ruta para silenciar las alarmas
   server.on("/silenciarAlarmas", HTTP_GET, [](AsyncWebServerRequest *request){
     alarma.reiniciarAlarma();
     request->send(200);
   });
 
+  //Ruta para obtener estadísticas (temperatura, humedad, etc)
   server.on("/estadisticas", HTTP_GET, [](AsyncWebServerRequest *request){
     DynamicJsonDocument root(256); // Adjust the capacity as needed
     root["temperatura"] = sensorTempRecamara.getTemperatura();
@@ -203,6 +221,7 @@ void setup() {
 }
 
 void loop() {
+  //Actualizar actuadores
   alarma.actualizar();
   ac.actualizar();
 

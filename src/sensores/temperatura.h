@@ -32,6 +32,7 @@ class SensorTemperatura {
         float humedad = 0;
 
         void actualizarDatos() {
+            //Actualizar datos si el intervalo de lectura ha pasado
             if(millis() - ultimaVezLeido > INTERVALO_LECTURA || ultimaVezLeido == 0) {
                 // Leemos la temperatura en grados centígrados
                 temperatura = dht.readTemperature();
